@@ -8,6 +8,7 @@ const cloudinary = require('cloudinary').v2;
 require("dotenv").config();
 const sgMail = require('@sendgrid/mail')
 sgMail.setApiKey(process.env.SENDGRID_API_KEY)
+const md5=require("md5")
 const register = async (req, res) => {
     try {
         const data = validationResult(req)
@@ -18,7 +19,7 @@ const register = async (req, res) => {
             console.error;
         }
         let saltRounds = await bcrypt.genSalt(10);
-        let encrypt = await bcrypt.hashSync(req.body.password, saltRounds);
+        let encrypt =  bcrypt.hashSync(req.body.password, saltRounds);
         let dataSucess = await dbops.dataWrite.create({
             userName: req.body.userName,
             password: encrypt,
@@ -26,19 +27,27 @@ const register = async (req, res) => {
             firstname: req.body.firstname,
             lastname: req.body.lastname,
         })
-        let token = jwt.sign({ registration: dataSucess.id }, process.env.key, {
-            expiresIn: "1h",
-        });
-        const msg = {
-            to: 'abaloni02@gmail.com', 
-            from: 'anmol@excellencetechnologies.in', 
-            subject: 'registration sucessfull',
-            text: 'thanks for registering thank you',
-            html: '<strong>and easy to do anywhere, even with Node.js</strong>',
-          }
-         await sgMail
-        .send(msg);
-        res.send(token);
+        let user=dataSucess.id
+        let tokengen = md5(new Date());
+        let tokenInt = await dbops.tokendata.create({
+            userid:user,
+            token:tokengen
+
+        })
+        setTimeout(await dbops.tokendata.destroy({ where: { token: tkn } }), '36000000');
+        // jwt.sign({ registration: dataSucess.id }, process.env.key, {
+            // expiresIn: "1h",
+        // });
+        // const msg = {
+        //     to: 'abaloni02@gmail.com', 
+        //     from: 'anmol@excellencetechnologies.in', 
+        //     subject: 'registration sucessfull',
+        //     text: 'thanks for registering thank you',
+        //     html: '<strong>and easy to do anywhere, even with Node.js</strong>',
+        //   }
+        //  await sgMail
+        // .send(msg);
+        res.send(tokenInt.token);
     }
     catch (error) {
         console.log(error);
@@ -60,10 +69,18 @@ const login = async (req, res) => {
         if (user) {
             let decryption = await bcrypt.compare(req.body.password, user.password);
             if (decryption == true) {
-                let token = jwt.sign({ user_id: user.id }, process.env.key, {
-                    expiresIn: "1h",
-                });
-                res.send(token);
+                let user=dataSucess.id
+        let tokengen = md5(new Date());
+        let tokenInt = await dbops.tokendata.create({
+            userid:user,
+            token:tokengen
+
+        })
+        setTimeout(await dbops.tokendata.destroy({ where: { token: tkn } }), '36000000');
+                // jwt.sign({ user_id: user.id }, process.env.key, {
+                    // expiresIn: "1h",
+                // });
+                res.send(tokenInt.token);
             }
         } else {
             res.send("Invalid Password");
@@ -81,8 +98,11 @@ const login = async (req, res) => {
 const getUserdata = async (req, res) => {
     try {
         let decoded = req.user;
+        let uid = await dbops.tokendata.findOne({
+            token: decoded.token,
+          });
         let user = await dbops.dataWrite.findOne({
-            where: { id: decoded.user_id }
+            where: { id: uid.userid }
         });
         if (user) { res.send(user) }
         else {
@@ -102,11 +122,15 @@ const getUserdata = async (req, res) => {
 const deleteuserData = async (req, res) => {
     try {
         let decoded = req.user;
+        let uid = await dbops.tokendata.findOne({
+            token: decoded.token,
+          });
         let user = await dbops.dataWrite.findOne({
-            where: { id: decoded.user_id }
-        });
+            where: { id: uid.userid} });
+        // let user = await dbops.dataWrite.findOne({
+            // where: { id: decoded.user_id }
         if (user) {
-            await dbops.dataWrite.destroy({ where: { id: decoded.user_id } });
+            await dbops.dataWrite.destroy({ where: { id: user.id } });
         }
         else {
             console.log("data does not exist");
@@ -148,9 +172,11 @@ const createAddress = async (req, res) => {
         if (!data.isEmpty()) {
             res.send(data)
         }
-        let uid = req.user;
+        let decoded = req.user;
+        let user = await dbops.dataWrite.findOne({
+            where: { id: decoded.userid} });
         let createdadta = await dbops.useraddressdataupdate.create({
-            userid: uid.registration,
+            userid: user.id,
             address: req.body.address,
             city: req.body.city,
             state: req.body.state,
@@ -173,9 +199,9 @@ const deleteAddress = async (req, res) => {
         if (!data.isEmpty()) {
             res.send(data)
         }
-        let uid = req.user;
+        let decoded = req.user;
         let adress = await dbops.useraddressdataupdate.findOne({
-            where: { userid: uid.registration }
+            where: { userid: decoded.userid }
         });
         if (!adress) { res.send('invalid address') }
         else {

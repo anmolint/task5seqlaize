@@ -18,6 +18,9 @@ const validaddress=[
   check('phonenumber','Phonenumber cannot be empty').not().isEmpty(),
   check('pincode','pincode cannot be empty').not().isEmpty(),
 ]
+const checkemail=[
+  check('email','enter a valid email').not().isEmpty()
+]
 module.exports = {
-  validuser,validlogin,validaddress
+  validuser,validlogin,validaddress,checkemail
 }
